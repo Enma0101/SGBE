@@ -1,35 +1,53 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "./services/supabase";
+import useUserRole from "./hooks/useUserRole";
+import Header from "./components/Header";
+
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Home from "./pages/Home";
+
+import PanelAspirante from "./pages/aspirante/Panel";
+import PanelAdmin from "./pages/admin/Panel";
+import PanelDirector from "./pages/director/Panel";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const { role, loading } = useUserRole(session);
+
+  if (session && loading) return <div className="p-4">Cargando usuario...</div>;
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <Router>
+      <Header session={session} />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+        <Route path="/register" element={!session ? <Register /> : <Navigate to="/" />} />
+
+        {/* Paneles según rol */}
+        <Route path="/panel/admin" element={role === "administrador" ? <PanelAdmin /> : <Navigate to="/" />} />
+        <Route path="/panel/aspirante" element={role === "aspirante" ? <PanelAspirante /> : <Navigate to="/" />} />
+        <Route path="/panel/director" element={role === "director" ? <PanelDirector /> : <Navigate to="/" />} />
+
+        <Route path="*" element={<div className="p-4">Página no encontrada</div>} />
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;
